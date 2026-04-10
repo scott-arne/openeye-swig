@@ -1,0 +1,73 @@
+[build-system]
+requires = ["scikit-build-core>=0.8", "swig>=4.0"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "{{ cookiecutter.project_slug }}"
+version = "{{ cookiecutter.initial_version }}"
+description = "{{ cookiecutter.project_description }}"
+license = "{{ cookiecutter.license }}"
+license-files = ["LICENSE"]
+requires-python = ">={{ cookiecutter.python_min_version }}"
+authors = [
+    { name = "{{ cookiecutter.author_name }}", email = "{{ cookiecutter.author_email }}" },
+]
+keywords = ["chemistry", "openeye", "swig"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: C++",
+]
+dependencies = [
+    "openeye-toolkits>={{ cookiecutter.openeye_version.rsplit('.', 1)[0] }}",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "vrzn>=0.1.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/python"]
+
+[tool.scikit-build]
+cmake.version = ">=3.21"
+cmake.build-type = "Release"
+build-dir = "build/{wheel_tag}"
+build.targets = ["{{ cookiecutter.project_slug }}_python"]
+wheel.install-dir = "."
+logging.level = "INFO"
+strict-config = false
+{% if cookiecutter.use_stable_abi == "true" -%}
+wheel.py-api = "cp{{ cookiecutter.python_min_version.replace('.', '') }}"
+{%- endif %}
+wheel.exclude = ["**.pyc", "**/__pycache__", "*.a", "CMakeFiles/**"]
+
+[tool.scikit-build.cmake.define]
+{{ cookiecutter.project_prefix }}_BUILD_TESTS = "OFF"
+{{ cookiecutter.project_prefix }}_BUILD_PYTHON = "ON"
+OPENEYE_USE_SHARED = "ON"
+{% if cookiecutter.use_stable_abi == "true" -%}
+{{ cookiecutter.project_prefix }}_USE_STABLE_ABI = "ON"
+{%- endif %}
+{{ cookiecutter.project_prefix }}_UNIVERSAL2 = "OFF"
+
+# =============================================================================
+# TOML-driven build configuration for scripts/build_python.py
+# =============================================================================
+# This section is read by build_python.py to parameterize the build.
+# The script itself is identical across all projects — only this config changes.
+[tool.oe-build]
+package-name = "{{ cookiecutter.project_slug }}"
+cmake-test-flag = "{{ cookiecutter.project_prefix }}_BUILD_TESTS"
+rpath-strategy = "platform"  # "platform" = @loader_path/../openeye/libs/{platform}, "simple" = @loader_path
+
+# OpenEye libraries that are expected to be missing from delocate
+# (they are provided at runtime by openeye-toolkits, not bundled in the wheel)
+expected-missing-libs = [
+    "liboechem", "liboesystem", "liboeplatform",
+    "liboemath", "libzstd",
+]
+
+# Additional CMake defines passed during wheel build (beyond the standard ones)
+[tool.oe-build.extra-cmake-defines]

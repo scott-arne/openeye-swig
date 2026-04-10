@@ -1,0 +1,303 @@
+name: Build Wheels
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+env:
+  GCS_BUCKET: openeye-sdks
+  OPENEYE_VERSION: "{{ cookiecutter.openeye_version }}"
+
+jobs:
+  build-linux:
+{% raw %}
+    permissions:
+      contents: read
+      id-token: write  # Required for Workload Identity Federation
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+            container: rockylinux:8
+{% endraw %}
+            sdk: OpenEye-toolkits-{{ cookiecutter.openeye_version }}-redhat-RHEL8-g++8.5-x64.tar.gz
+{% raw %}
+            python: python3.11
+            dnf_repo: powertools
+            manylinux_plat: manylinux_2_28_x86_64
+
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+            container: rockylinux:9
+{% endraw %}
+            sdk: OpenEye-toolkits-{{ cookiecutter.openeye_version }}-Ubuntu-22.04-g++11.11-aarch64.tar.gz
+{% raw %}
+            python: python3.11
+            dnf_repo: crb
+            manylinux_plat: manylinux_2_34_aarch64
+
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.container }}
+
+    steps:
+      - name: Install prerequisites
+        run: |
+          dnf install -y epel-release
+          dnf config-manager --set-enabled ${{ matrix.dnf_repo }}
+          dnf install -y --allowerasing \
+            git curl unzip gcc gcc-c++ cmake ninja-build \
+            python3.11 python3.11-devel \
+            zlib-devel cairo
+
+      - uses: actions/checkout@v6
+
+      - name: Authenticate to Google Cloud
+        id: gcp-auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+
+      - name: Setup Python environment
+        run: |
+          ${{ matrix.python }} -m venv /opt/venv
+          echo "/opt/venv/bin" >> $GITHUB_PATH
+          /opt/venv/bin/pip install --upgrade pip setuptools wheel
+          /opt/venv/bin/pip install scikit-build-core ninja cmake build swig auditwheel patchelf
+
+      - name: Download OpenEye SDK from GCS
+        run: |
+          mkdir -p /opt/openeye
+          curl -fsSL \
+            -H "Authorization: Bearer ${{ steps.gcp-auth.outputs.access_token }}" \
+            "https://storage.googleapis.com/${{ env.GCS_BUCKET }}/${{ matrix.sdk }}" \
+            -o /tmp/sdk.tar.gz
+          tar -xzf /tmp/sdk.tar.gz -C /opt/openeye --strip-components=2
+          rm /tmp/sdk.tar.gz
+          ls -la /opt/openeye/
+
+      - name: Download OpenEye license from GCS
+        run: |
+          curl -fsSL \
+            -H "Authorization: Bearer ${{ steps.gcp-auth.outputs.access_token }}" \
+            "https://storage.googleapis.com/${{ env.GCS_BUCKET }}/oe_license.txt" \
+            -o /opt/openeye/oe_license.txt
+          echo "OE_LICENSE=/opt/openeye/oe_license.txt" >> $GITHUB_ENV
+
+      - name: Install openeye-toolkits Python package
+        run: |
+          /opt/venv/bin/pip install openeye-toolkits==${{ env.OPENEYE_VERSION }} \
+            --extra-index-url https://pypi.anaconda.org/openeye/simple \
+            --no-cache-dir
+          echo "--- Verifying openeye-toolkits installation ---"
+          /opt/venv/bin/pip show openeye-toolkits
+          /opt/venv/bin/python -c "from openeye import oechem; print('OpenEye version:', oechem.OEToolkitsGetRelease())"
+
+      - name: Build wheel
+        env:
+          OPENEYE_ROOT: /opt/openeye
+        run: |
+          /opt/venv/bin/python scripts/build_python.py \
+            --openeye-root /opt/openeye \
+            --python /opt/venv/bin/python \
+            --verbose
+
+      - name: Repair wheel for manylinux
+        run: |
+          OE_LIB_DIR=$(/opt/venv/bin/python -c \
+            "from openeye import libs; print(libs.FindOpenEyeDLLSDirectory())")
+          EXCLUDE_ARGS=""
+          for lib in "$OE_LIB_DIR"/lib*.so; do
+            EXCLUDE_ARGS="$EXCLUDE_ARGS --exclude $(basename $lib)"
+          done
+          LD_LIBRARY_PATH="$OE_LIB_DIR" auditwheel repair \
+            $EXCLUDE_ARGS \
+            --plat ${{ matrix.manylinux_plat }} \
+            --wheel-dir dist-repaired/ \
+{% endraw %}
+            dist/{{ cookiecutter.project_slug }}-*.whl
+          rm dist/{{ cookiecutter.project_slug }}-*.whl
+{% raw %}
+          mv dist-repaired/*.whl dist/
+
+      - name: Fix RPATH for OpenEye shared libraries
+        run: |
+          OE_PLATFORM=$(/opt/venv/bin/python -c \
+            "from openeye import libs; import os; print(os.path.basename(libs.FindOpenEyeDLLSDirectory()))")
+{% endraw %}
+          WHEEL=$(ls dist/{{ cookiecutter.project_slug }}-*.whl)
+{% raw %}
+          TMPDIR=$(mktemp -d)
+          unzip -q "$WHEEL" -d "$TMPDIR"
+{% endraw %}
+          SO_FILE=$(find "$TMPDIR" -name '_{{ cookiecutter.project_slug }}*.so' | head -1)
+{% raw %}
+          if [ -n "$SO_FILE" ]; then
+            patchelf --add-rpath '$ORIGIN' "$SO_FILE"
+            patchelf --add-rpath "\$ORIGIN/../openeye/libs/$OE_PLATFORM" "$SO_FILE"
+            echo "RPATH set to: $(patchelf --print-rpath "$SO_FILE")"
+          fi
+          rm "$WHEEL"
+          /opt/venv/bin/python -m wheel pack "$TMPDIR" -d dist/
+          rm -rf "$TMPDIR"
+
+      - name: Test wheel
+        run: |
+          /opt/venv/bin/pip install pytest
+{% endraw %}
+          /opt/venv/bin/pip install dist/{{ cookiecutter.project_slug }}-*.whl
+{% raw %}
+          /opt/venv/bin/pytest tests/python/ -v -s
+
+      - name: List built artifacts
+        run: |
+          ls -la dist/
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheel-linux-${{ matrix.arch }}
+          path: dist/*.whl
+          retention-days: 30
+{% endraw %}
+
+  build-macos:
+{% raw %}
+    permissions:
+      contents: read
+      id-token: write  # Required for Workload Identity Federation
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Authenticate to Google Cloud
+        id: gcp-auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+
+      - name: Install build dependencies
+        run: |
+          brew install swig
+          pip install --upgrade pip setuptools wheel
+          pip install scikit-build-core ninja cmake build delocate
+
+      - name: Download OpenEye SDK from GCS
+        run: |
+          mkdir -p ${{ runner.temp }}/openeye
+          curl -fsSL \
+            -H "Authorization: Bearer ${{ steps.gcp-auth.outputs.access_token }}" \
+{% endraw %}
+            "https://storage.googleapis.com/{% raw %}${{ env.GCS_BUCKET }}{% endraw %}/OpenEye-toolkits-{{ cookiecutter.openeye_version }}-macOS-14.8-clang++16-universal.tar.gz" \
+{% raw %}
+            -o /tmp/sdk.tar.gz
+          tar -xzf /tmp/sdk.tar.gz -C ${{ runner.temp }}/openeye --strip-components=2
+          rm /tmp/sdk.tar.gz
+          ls -la ${{ runner.temp }}/openeye/
+
+      - name: Download OpenEye license from GCS
+        run: |
+          curl -fsSL \
+            -H "Authorization: Bearer ${{ steps.gcp-auth.outputs.access_token }}" \
+            "https://storage.googleapis.com/${{ env.GCS_BUCKET }}/oe_license.txt" \
+            -o ${{ runner.temp }}/openeye/oe_license.txt
+          echo "OE_LICENSE=${{ runner.temp }}/openeye/oe_license.txt" >> $GITHUB_ENV
+
+      - name: Install openeye-toolkits Python package
+        run: |
+          pip install openeye-toolkits==${{ env.OPENEYE_VERSION }} \
+            --extra-index-url https://pypi.anaconda.org/openeye/simple \
+            --no-cache-dir
+          echo "--- Verifying openeye-toolkits installation ---"
+          pip show openeye-toolkits
+          python -c "from openeye import oechem; print('OpenEye version:', oechem.OEToolkitsGetRelease())"
+
+      - name: Build wheel
+        env:
+          OPENEYE_ROOT: ${{ runner.temp }}/openeye
+        run: |
+          python scripts/build_python.py \
+            --openeye-root ${{ runner.temp }}/openeye \
+            --python $(which python) \
+            --verbose
+
+      - name: Test wheel
+        run: |
+          pip install pytest
+{% endraw %}
+          pip install dist/{{ cookiecutter.project_slug }}-*.whl
+{% raw %}
+          pytest tests/python/ -v -s
+
+      - name: List built artifacts
+        run: |
+          ls -la dist/
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheel-macos-universal2
+          path: dist/*.whl
+          retention-days: 30
+{% endraw %}
+
+  # Collect all wheels into a single artifact
+  collect-wheels:
+{% raw %}
+    needs: [build-linux, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all wheel artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: wheel-*
+          path: wheels
+          merge-multiple: true
+
+      - name: List all wheels
+        run: |
+          ls -la wheels/
+
+      - name: Upload combined wheels artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: all-wheels
+          path: wheels/*.whl
+          retention-days: 30
+{% endraw %}
+
+  # Publish to PyPI on release tags
+  publish:
+{% raw %}
+    needs: collect-wheels
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment: pypi
+    permissions:
+      id-token: write  # Required for trusted publishing
+    steps:
+      - name: Download wheels
+        uses: actions/download-artifact@v8
+        with:
+          name: all-wheels
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+          # For TestPyPI, uncomment:
+          # repository-url: https://test.pypi.org/legacy/
+{% endraw %}

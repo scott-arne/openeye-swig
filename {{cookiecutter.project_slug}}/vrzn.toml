@@ -1,0 +1,24 @@
+[[locations]]
+file = "pyproject.toml"
+type = "pyproject-version"
+
+[[locations]]
+file = "python/pyproject.toml"
+type = "pyproject-version"
+
+[[locations]]
+file = "python/{{ cookiecutter.project_slug }}/__init__.py"
+type = "python-dunder"
+
+[[locations]]
+file = "python/{{ cookiecutter.project_slug }}/__init__.py"
+type = "python-version-info"
+
+[[locations]]
+file = "CMakeLists.txt"
+type = "cmake-project"
+
+[[locations]]
+file = "include/{{ cookiecutter.project_slug }}/{{ cookiecutter.project_slug }}.h"
+type = "c-define"
+prefix = "{{ cookiecutter.project_prefix }}"

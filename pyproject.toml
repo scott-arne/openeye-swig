@@ -1,0 +1,7 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "template: Template generation and content validation (no SDK needed)",
+    "build: CMake configure and compile (requires OPENEYE_ROOT)",
+    "integration: Full end-to-end test execution (requires OPENEYE_ROOT + OE_LICENSE)",
+]

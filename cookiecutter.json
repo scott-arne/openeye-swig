@@ -1,0 +1,15 @@
+{
+    "project_name": "My OpenEye Project",
+    "project_slug": "{{ cookiecutter.project_name.lower().replace(' ', '').replace('-', '') }}",
+    "project_prefix": "{{ cookiecutter.project_slug.upper() }}",
+    "project_description": "A C++/Python library using OpenEye Toolkits",
+    "author_name": "Your Name",
+    "author_email": "you@example.com",
+    "github_org": "your-org",
+    "license": ["MIT", "BSD-3-Clause", "Apache-2.0"],
+    "openeye_version": "2025.2.1",
+    "cmake_openeye_version": "v1.0.2",
+    "initial_version": "0.1.0",
+    "python_min_version": "3.10",
+    "use_stable_abi": ["true", "false"]
+}

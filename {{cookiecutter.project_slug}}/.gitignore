@@ -1,0 +1,39 @@
+# Build artifacts
+build*/
+dist/
+*.egg-info/
+*.whl
+
+# CMake
+CMakeFiles/
+cmake_install.cmake
+CMakeCache.txt
+compile_commands.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.dylib
+*.a
+
+# SWIG generated
+python/{{ cookiecutter.project_slug }}/{{ cookiecutter.project_slug }}.py
+python/{{ cookiecutter.project_slug }}/_{{ cookiecutter.project_slug }}.so
+python/{{ cookiecutter.project_slug }}/_build_info.py
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# OpenEye
+oe_license.txt
+
+# User CMake presets (may contain local paths)
+CMakeUserPresets.json
+
+# Claude
+docs/superpowers

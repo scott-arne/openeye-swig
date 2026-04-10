@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "{{ cookiecutter.project_slug }}"
+version = "{{ cookiecutter.initial_version }}"
+requires-python = ">={{ cookiecutter.python_min_version }}"
+dependencies = [
+    "openeye-toolkits>={{ cookiecutter.openeye_version.rsplit('.', 1)[0] }}",
+]
+
+[tool.setuptools]
+packages = ["{{ cookiecutter.project_slug }}"]
