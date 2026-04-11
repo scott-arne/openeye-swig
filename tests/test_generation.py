@@ -5,6 +5,7 @@ combinations. No OpenEye SDK required.
 """
 
 import pytest
+import yaml
 
 from conftest import DEFAULT_SLUG
 
@@ -148,3 +149,42 @@ class TestOptionVariants:
 
         cmake = (project / "CMakeLists.txt").read_text()
         assert f"project({slug}" in cmake
+
+
+class TestCloudProviderVariants:
+
+    @pytest.mark.parametrize("provider", ["gcs", "aws", "none"])
+    def test_provider_generates_without_residuals(self, generated_project_custom, provider):
+        """All cloud_provider choices render without residual template variables."""
+        project = generated_project_custom(
+            extra_context={"cloud_provider": provider}
+        )
+        for path in project.rglob("*"):
+            if not path.is_file():
+                continue
+            if path.suffix in BINARY_EXTENSIONS:
+                continue
+            if ".git" in path.parts:
+                continue
+            if any(part.startswith("build") for part in path.relative_to(project).parts):
+                continue
+            try:
+                content = path.read_text(encoding="utf-8", errors="ignore")
+            except Exception:
+                continue
+            for marker in ("{{ cookiecutter.", "{%"):
+                assert marker not in content, (
+                    f"Residual '{marker}' in {path.relative_to(project)} "
+                    f"(provider={provider})"
+                )
+
+    @pytest.mark.parametrize("provider", ["gcs", "aws", "none"])
+    def test_provider_workflow_valid_yaml(self, generated_project_custom, provider):
+        """Workflow YAML is valid for all provider choices."""
+        project = generated_project_custom(
+            extra_context={"cloud_provider": provider}
+        )
+        content = (project / ".github/workflows/build-wheels.yml").read_text()
+        data = yaml.safe_load(content)
+        assert isinstance(data, dict)
+        assert "jobs" in data

@@ -226,3 +226,88 @@ class TestVrznIntegration:
         consensus, mismatches = check_agreement(locations)
         assert consensus is not None
         assert str(consensus) == "0.2.0"
+
+
+class TestWorkflowProviderContent:
+
+    def test_gcs_workflow_contains_gcs_auth(self, generated_project):
+        """Default (GCS) workflow has GCS auth and download steps."""
+        content = (generated_project / ".github/workflows/build-wheels.yml").read_text()
+        assert "google-github-actions/auth" in content
+        assert "storage.googleapis.com" in content
+        assert "aws-actions/configure-aws-credentials" not in content
+        assert "aws s3 cp" not in content
+
+    def test_aws_workflow_contains_aws_auth(self, generated_project_custom):
+        """AWS workflow has AWS auth and download steps."""
+        project = generated_project_custom(extra_context={"cloud_provider": "aws"})
+        content = (project / ".github/workflows/build-wheels.yml").read_text()
+        assert "aws-actions/configure-aws-credentials" in content
+        assert "aws s3 cp" in content
+        assert "google-github-actions/auth" not in content
+        assert "storage.googleapis.com" not in content
+
+    def test_none_workflow_contains_placeholder(self, generated_project_custom):
+        """None workflow has placeholder error steps."""
+        project = generated_project_custom(extra_context={"cloud_provider": "none"})
+        content = (project / ".github/workflows/build-wheels.yml").read_text()
+        assert "No cloud provider configured" in content
+        assert "google-github-actions/auth" not in content
+        assert "aws-actions/configure-aws-credentials" not in content
+
+    @pytest.mark.parametrize("provider", ["gcs", "aws", "none"])
+    def test_workflow_has_validation_step(self, generated_project_custom, provider):
+        """All provider variants include the validation step."""
+        project = generated_project_custom(extra_context={"cloud_provider": provider})
+        content = (project / ".github/workflows/build-wheels.yml").read_text()
+        assert "Validate configuration" in content
+        assert "vars.OPENEYE_VERSION" in content
+
+    @pytest.mark.parametrize("provider", ["gcs", "aws"])
+    def test_gcs_aws_validation_checks_bucket(self, generated_project_custom, provider):
+        """GCS and AWS variants validate SDK_BUCKET."""
+        project = generated_project_custom(extra_context={"cloud_provider": provider})
+        content = (project / ".github/workflows/build-wheels.yml").read_text()
+        assert "vars.SDK_BUCKET" in content
+
+    def test_none_validation_skips_bucket(self, generated_project_custom):
+        """None variant does not reference SDK_BUCKET."""
+        project = generated_project_custom(extra_context={"cloud_provider": "none"})
+        content = (project / ".github/workflows/build-wheels.yml").read_text()
+        assert "vars.SDK_BUCKET" not in content
+
+    @pytest.mark.parametrize("provider", ["gcs", "aws"])
+    def test_gcs_aws_has_id_token_permission(self, generated_project_custom, provider):
+        """GCS and AWS variants include id-token: write permission."""
+        project = generated_project_custom(extra_context={"cloud_provider": provider})
+        content = (project / ".github/workflows/build-wheels.yml").read_text()
+        assert "id-token: write" in content
+
+    def test_none_omits_id_token_permission(self, generated_project_custom):
+        """None variant does not request id-token: write permission."""
+        project = generated_project_custom(extra_context={"cloud_provider": "none"})
+        content = (project / ".github/workflows/build-wheels.yml").read_text()
+        assert "id-token: write" not in content
+
+    def test_aws_workflow_installs_awscli(self, generated_project_custom):
+        """AWS variant installs AWS CLI in prerequisites."""
+        project = generated_project_custom(extra_context={"cloud_provider": "aws"})
+        content = (project / ".github/workflows/build-wheels.yml").read_text()
+        assert "awscli" in content or "awscliv2" in content
+
+    @pytest.mark.parametrize("provider", ["gcs", "none"])
+    def test_non_aws_omits_awscli(self, generated_project_custom, provider):
+        """GCS and none variants do not install AWS CLI."""
+        project = generated_project_custom(extra_context={"cloud_provider": provider})
+        content = (project / ".github/workflows/build-wheels.yml").read_text()
+        assert "awscli" not in content
+        assert "awscliv2" not in content
+
+    @pytest.mark.parametrize("provider", ["gcs", "aws", "none"])
+    def test_workflow_uses_vars_openeye_version(self, generated_project_custom, provider):
+        """All variants use vars.OPENEYE_VERSION for pip install."""
+        project = generated_project_custom(extra_context={"cloud_provider": provider})
+        content = (project / ".github/workflows/build-wheels.yml").read_text()
+        assert "vars.OPENEYE_VERSION" in content
+        # Should NOT contain the cookiecutter openeye_version in the workflow
+        assert "2025.2.1" not in content
