@@ -464,14 +464,8 @@ jobs:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     environment: pypi
-{% endraw %}
-{% if cookiecutter.cloud_provider != "none" %}
-{% raw %}
     permissions:
       id-token: write  # Required for trusted publishing
-{% endraw %}
-{% endif %}
-{% raw %}
     steps:
       - name: Download wheels
         uses: actions/download-artifact@v8

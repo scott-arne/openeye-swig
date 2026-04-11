@@ -283,11 +283,20 @@ class TestWorkflowProviderContent:
         content = (project / ".github/workflows/build-wheels.yml").read_text()
         assert "id-token: write" in content
 
-    def test_none_omits_id_token_permission(self, generated_project_custom):
-        """None variant does not request id-token: write permission."""
+    def test_none_omits_id_token_from_build_jobs(self, generated_project_custom):
+        """None variant does not request id-token: write in build jobs.
+
+        The publish job retains id-token: write for PyPI trusted publishing
+        regardless of cloud provider.
+        """
         project = generated_project_custom(extra_context={"cloud_provider": "none"})
         content = (project / ".github/workflows/build-wheels.yml").read_text()
-        assert "id-token: write" not in content
+        data = yaml.safe_load(content)
+        for job_name in ("build-linux", "build-macos"):
+            permissions = data["jobs"][job_name].get("permissions", {})
+            assert "id-token" not in permissions, (
+                f"{job_name} should not have id-token permission for none provider"
+            )
 
     def test_aws_workflow_installs_awscli(self, generated_project_custom):
         """AWS variant installs AWS CLI in prerequisites."""
