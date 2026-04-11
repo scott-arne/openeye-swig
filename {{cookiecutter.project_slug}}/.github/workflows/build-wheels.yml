@@ -6,15 +6,20 @@ on:
   workflow_dispatch:
 
 env:
-  GCS_BUCKET: openeye-sdks  # Configure this as a GitHub secret or change based on cloud_provider
-  OPENEYE_VERSION: "{{ cookiecutter.openeye_version }}"
+  OPENEYE_VERSION: {% raw %}${{ vars.OPENEYE_VERSION }}{% endraw %}
 
 jobs:
   build-linux:
 {% raw %}
     permissions:
       contents: read
-      id-token: write  # Required for Workload Identity Federation
+{% endraw %}
+{% if cookiecutter.cloud_provider != "none" %}
+{% raw %}
+      id-token: write
+{% endraw %}
+{% endif %}
+{% raw %}
     strategy:
       fail-fast: false
       matrix:
@@ -22,9 +27,6 @@ jobs:
           - arch: x86_64
             runner: ubuntu-latest
             container: rockylinux:8
-{% endraw %}
-            sdk: OpenEye-toolkits-{{ cookiecutter.openeye_version }}-redhat-RHEL8-g++8.5-x64.tar.gz
-{% raw %}
             python: python3.11
             dnf_repo: powertools
             manylinux_plat: manylinux_2_28_x86_64
@@ -32,9 +34,6 @@ jobs:
           - arch: aarch64
             runner: ubuntu-24.04-arm
             container: rockylinux:9
-{% endraw %}
-            sdk: OpenEye-toolkits-{{ cookiecutter.openeye_version }}-Ubuntu-22.04-g++11.11-aarch64.tar.gz
-{% raw %}
             python: python3.11
             dnf_repo: crb
             manylinux_plat: manylinux_2_34_aarch64
@@ -51,16 +50,16 @@ jobs:
             git curl unzip gcc gcc-c++ cmake ninja-build \
             python3.11 python3.11-devel \
             zlib-devel cairo
+{% endraw %}
+{% if cookiecutter.cloud_provider == "aws" %}
+{% raw %}
+          curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o /tmp/awscliv2.zip
+          unzip -q /tmp/awscliv2.zip -d /tmp && /tmp/aws/install && rm -rf /tmp/aws /tmp/awscliv2.zip
+{% endraw %}
+{% endif %}
+{% raw %}
 
       - uses: actions/checkout@v6
-
-      - name: Authenticate to Google Cloud
-        id: gcp-auth
-        uses: google-github-actions/auth@v3
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-          token_format: access_token
 
       - name: Setup Python environment
         run: |
@@ -69,12 +68,58 @@ jobs:
           /opt/venv/bin/pip install --upgrade pip setuptools wheel
           /opt/venv/bin/pip install scikit-build-core ninja cmake build swig auditwheel patchelf
 
+      - name: Validate configuration
+        run: |
+          errors=0
+{% endraw %}
+{% if cookiecutter.cloud_provider != "none" %}
+{% raw %}
+          if [ -z "${{ vars.OPENEYE_VERSION }}" ]; then
+            echo "::error::GitHub variable OPENEYE_VERSION is not set"
+            errors=1
+          fi
+          if [ -z "${{ vars.SDK_BUCKET }}" ]; then
+            echo "::error::GitHub variable SDK_BUCKET is not set"
+            errors=1
+          fi
+          SDK_FILENAME="${{ matrix.arch == 'x86_64' && vars.SDK_LINUX_X86_64 || vars.SDK_LINUX_AARCH64 }}"
+          if [ -z "$SDK_FILENAME" ]; then
+            echo "::error::GitHub variable for SDK filename (SDK_LINUX_X86_64 or SDK_LINUX_AARCH64) is not set"
+            errors=1
+          fi
+{% endraw %}
+{% else %}
+{% raw %}
+          if [ -z "${{ vars.OPENEYE_VERSION }}" ]; then
+            echo "::error::GitHub variable OPENEYE_VERSION is not set"
+            errors=1
+          fi
+{% endraw %}
+{% endif %}
+{% raw %}
+          if [ "$errors" -ne 0 ]; then
+            echo "::error::Configure required variables in Settings > Variables > Actions"
+            exit 1
+          fi
+{% endraw %}
+{% if cookiecutter.cloud_provider == "gcs" %}
+{% raw %}
+      - name: Authenticate to Google Cloud
+        id: gcp-auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+
       - name: Download OpenEye SDK from GCS
+        env:
+          SDK_FILENAME: ${{ matrix.arch == 'x86_64' && vars.SDK_LINUX_X86_64 || vars.SDK_LINUX_AARCH64 }}
         run: |
           mkdir -p /opt/openeye
           curl -fsSL \
             -H "Authorization: Bearer ${{ steps.gcp-auth.outputs.access_token }}" \
-            "https://storage.googleapis.com/${{ env.GCS_BUCKET }}/${{ matrix.sdk }}" \
+            "https://storage.googleapis.com/${{ vars.SDK_BUCKET }}/$SDK_FILENAME" \
             -o /tmp/sdk.tar.gz
           tar -xzf /tmp/sdk.tar.gz -C /opt/openeye --strip-components=2
           rm /tmp/sdk.tar.gz
@@ -84,13 +129,58 @@ jobs:
         run: |
           curl -fsSL \
             -H "Authorization: Bearer ${{ steps.gcp-auth.outputs.access_token }}" \
-            "https://storage.googleapis.com/${{ env.GCS_BUCKET }}/oe_license.txt" \
+            "https://storage.googleapis.com/${{ vars.SDK_BUCKET }}/oe_license.txt" \
             -o /opt/openeye/oe_license.txt
           echo "OE_LICENSE=/opt/openeye/oe_license.txt" >> $GITHUB_ENV
+{% endraw %}
+{% endif %}
+{% if cookiecutter.cloud_provider == "aws" %}
+{% raw %}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
 
+      - name: Download OpenEye SDK from S3
+        env:
+          SDK_FILENAME: ${{ matrix.arch == 'x86_64' && vars.SDK_LINUX_X86_64 || vars.SDK_LINUX_AARCH64 }}
+        run: |
+          mkdir -p /opt/openeye
+          aws s3 cp "s3://${{ vars.SDK_BUCKET }}/$SDK_FILENAME" /tmp/sdk.tar.gz
+          tar -xzf /tmp/sdk.tar.gz -C /opt/openeye --strip-components=2
+          rm /tmp/sdk.tar.gz
+          ls -la /opt/openeye/
+
+      - name: Download OpenEye license from S3
+        run: |
+          aws s3 cp "s3://${{ vars.SDK_BUCKET }}/oe_license.txt" /opt/openeye/oe_license.txt
+          echo "OE_LICENSE=/opt/openeye/oe_license.txt" >> $GITHUB_ENV
+{% endraw %}
+{% endif %}
+{% if cookiecutter.cloud_provider == "none" %}
+{% raw %}
+      - name: Download OpenEye SDK
+        run: |
+          # TODO: Replace this step with your SDK download commands.
+          # The SDK must be extracted to /opt/openeye with the standard
+          # directory layout (include/, lib/).
+          echo "::error::No cloud provider configured. Replace this step with your SDK download commands."
+          echo "::error::The SDK must be extracted to /opt/openeye."
+          exit 1
+
+      - name: Download OpenEye license
+        run: |
+          # TODO: Replace this step with your license download commands.
+          echo "::error::No cloud provider configured. Replace this step with your license download commands."
+          echo "::error::The license must be written to /opt/openeye/oe_license.txt."
+          exit 1
+{% endraw %}
+{% endif %}
+{% raw %}
       - name: Install openeye-toolkits Python package
         run: |
-          /opt/venv/bin/pip install openeye-toolkits==${{ env.OPENEYE_VERSION }} \
+          /opt/venv/bin/pip install openeye-toolkits==${{ vars.OPENEYE_VERSION }} \
             --extra-index-url https://pypi.anaconda.org/openeye/simple \
             --no-cache-dir
           echo "--- Verifying openeye-toolkits installation ---"
@@ -169,7 +259,13 @@ jobs:
 {% raw %}
     permissions:
       contents: read
-      id-token: write  # Required for Workload Identity Federation
+{% endraw %}
+{% if cookiecutter.cloud_provider != "none" %}
+{% raw %}
+      id-token: write
+{% endraw %}
+{% endif %}
+{% raw %}
     runs-on: macos-latest
 
     steps:
@@ -180,6 +276,54 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install build dependencies
+        run: |
+          brew install swig
+{% endraw %}
+{% if cookiecutter.cloud_provider == "aws" %}
+{% raw %}
+          brew install awscli
+{% endraw %}
+{% endif %}
+{% raw %}
+          pip install --upgrade pip setuptools wheel
+          pip install scikit-build-core ninja cmake build delocate
+
+      - name: Validate configuration
+        run: |
+          errors=0
+{% endraw %}
+{% if cookiecutter.cloud_provider != "none" %}
+{% raw %}
+          if [ -z "${{ vars.OPENEYE_VERSION }}" ]; then
+            echo "::error::GitHub variable OPENEYE_VERSION is not set"
+            errors=1
+          fi
+          if [ -z "${{ vars.SDK_BUCKET }}" ]; then
+            echo "::error::GitHub variable SDK_BUCKET is not set"
+            errors=1
+          fi
+          if [ -z "${{ vars.SDK_MACOS }}" ]; then
+            echo "::error::GitHub variable SDK_MACOS is not set"
+            errors=1
+          fi
+{% endraw %}
+{% else %}
+{% raw %}
+          if [ -z "${{ vars.OPENEYE_VERSION }}" ]; then
+            echo "::error::GitHub variable OPENEYE_VERSION is not set"
+            errors=1
+          fi
+{% endraw %}
+{% endif %}
+{% raw %}
+          if [ "$errors" -ne 0 ]; then
+            echo "::error::Configure required variables in Settings > Variables > Actions"
+            exit 1
+          fi
+{% endraw %}
+{% if cookiecutter.cloud_provider == "gcs" %}
+{% raw %}
       - name: Authenticate to Google Cloud
         id: gcp-auth
         uses: google-github-actions/auth@v3
@@ -188,20 +332,12 @@ jobs:
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
           token_format: access_token
 
-      - name: Install build dependencies
-        run: |
-          brew install swig
-          pip install --upgrade pip setuptools wheel
-          pip install scikit-build-core ninja cmake build delocate
-
       - name: Download OpenEye SDK from GCS
         run: |
           mkdir -p ${{ runner.temp }}/openeye
           curl -fsSL \
             -H "Authorization: Bearer ${{ steps.gcp-auth.outputs.access_token }}" \
-{% endraw %}
-            "https://storage.googleapis.com/{% raw %}${{ env.GCS_BUCKET }}{% endraw %}/OpenEye-toolkits-{{ cookiecutter.openeye_version }}-macOS-14.8-clang++16-universal.tar.gz" \
-{% raw %}
+            "https://storage.googleapis.com/${{ vars.SDK_BUCKET }}/${{ vars.SDK_MACOS }}" \
             -o /tmp/sdk.tar.gz
           tar -xzf /tmp/sdk.tar.gz -C ${{ runner.temp }}/openeye --strip-components=2
           rm /tmp/sdk.tar.gz
@@ -211,13 +347,56 @@ jobs:
         run: |
           curl -fsSL \
             -H "Authorization: Bearer ${{ steps.gcp-auth.outputs.access_token }}" \
-            "https://storage.googleapis.com/${{ env.GCS_BUCKET }}/oe_license.txt" \
+            "https://storage.googleapis.com/${{ vars.SDK_BUCKET }}/oe_license.txt" \
             -o ${{ runner.temp }}/openeye/oe_license.txt
           echo "OE_LICENSE=${{ runner.temp }}/openeye/oe_license.txt" >> $GITHUB_ENV
+{% endraw %}
+{% endif %}
+{% if cookiecutter.cloud_provider == "aws" %}
+{% raw %}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
 
+      - name: Download OpenEye SDK from S3
+        run: |
+          mkdir -p ${{ runner.temp }}/openeye
+          aws s3 cp "s3://${{ vars.SDK_BUCKET }}/${{ vars.SDK_MACOS }}" /tmp/sdk.tar.gz
+          tar -xzf /tmp/sdk.tar.gz -C ${{ runner.temp }}/openeye --strip-components=2
+          rm /tmp/sdk.tar.gz
+          ls -la ${{ runner.temp }}/openeye/
+
+      - name: Download OpenEye license from S3
+        run: |
+          aws s3 cp "s3://${{ vars.SDK_BUCKET }}/oe_license.txt" ${{ runner.temp }}/openeye/oe_license.txt
+          echo "OE_LICENSE=${{ runner.temp }}/openeye/oe_license.txt" >> $GITHUB_ENV
+{% endraw %}
+{% endif %}
+{% if cookiecutter.cloud_provider == "none" %}
+{% raw %}
+      - name: Download OpenEye SDK
+        run: |
+          # TODO: Replace this step with your SDK download commands.
+          # The SDK must be extracted to $RUNNER_TEMP/openeye with the standard
+          # directory layout (include/, lib/).
+          echo "::error::No cloud provider configured. Replace this step with your SDK download commands."
+          echo "::error::The SDK must be extracted to $RUNNER_TEMP/openeye."
+          exit 1
+
+      - name: Download OpenEye license
+        run: |
+          # TODO: Replace this step with your license download commands.
+          echo "::error::No cloud provider configured. Replace this step with your license download commands."
+          echo "::error::The license must be written to $RUNNER_TEMP/openeye/oe_license.txt."
+          exit 1
+{% endraw %}
+{% endif %}
+{% raw %}
       - name: Install openeye-toolkits Python package
         run: |
-          pip install openeye-toolkits==${{ env.OPENEYE_VERSION }} \
+          pip install openeye-toolkits==${{ vars.OPENEYE_VERSION }} \
             --extra-index-url https://pypi.anaconda.org/openeye/simple \
             --no-cache-dir
           echo "--- Verifying openeye-toolkits installation ---"
