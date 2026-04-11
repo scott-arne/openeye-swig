@@ -219,6 +219,20 @@ builds wheels on:
 It triggers on version tags (`v*`) and `workflow_dispatch`. Wheels are published
 to PyPI via trusted publishing on tag pushes.
 
+**Required GitHub Variables** (configured in Settings > Variables > Actions):
+
+| Variable | Example | Description |
+|----------|---------|-------------|
+| `OPENEYE_VERSION` | `{{ cookiecutter.openeye_version }}` | OpenEye SDK version for CI |
+{%- if cookiecutter.cloud_provider != "none" %}
+| `SDK_BUCKET` | `openeye-sdks` | Cloud storage bucket name |
+| `SDK_LINUX_X86_64` | `OpenEye-toolkits-...-x64.tar.gz` | Linux x86_64 SDK filename |
+| `SDK_LINUX_AARCH64` | `OpenEye-toolkits-...-aarch64.tar.gz` | Linux aarch64 SDK filename |
+| `SDK_MACOS` | `OpenEye-toolkits-...-universal.tar.gz` | macOS SDK filename |
+{%- endif %}
+
+{%- if cookiecutter.cloud_provider == "gcs" %}
+
 **Required GitHub Secrets:**
 
 | Secret | Description |
@@ -226,8 +240,24 @@ to PyPI via trusted publishing on tag pushes.
 | `GCP_WORKLOAD_IDENTITY_PROVIDER` | GCP Workload Identity Federation provider |
 | `GCP_SERVICE_ACCOUNT` | GCP service account for SDK downloads |
 
-The OpenEye C++ SDK and license file are downloaded from a GCS bucket during CI
-(the bucket name is configured during project setup).
+The OpenEye C++ SDK and license file are downloaded from a GCS bucket
+(`SDK_BUCKET`) during CI.
+{%- elif cookiecutter.cloud_provider == "aws" %}
+
+**Required GitHub Secrets:**
+
+| Secret | Description |
+|--------|-------------|
+| `AWS_ROLE_ARN` | IAM role ARN for GitHub Actions OIDC |
+
+The OpenEye C++ SDK and license file are downloaded from an S3 bucket
+(`SDK_BUCKET`) during CI.
+{%- elif cookiecutter.cloud_provider == "none" %}
+
+**Note:** The CI workflow includes placeholder download steps that will fail
+with an error. Replace them with your own SDK and license download commands
+in `.github/workflows/build-wheels.yml`.
+{%- endif %}
 
 ## CMake Options
 
