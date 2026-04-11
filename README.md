@@ -7,21 +7,21 @@ The generated project includes:
 
 - A C++ library linked against OpenEye OEChem
 - SWIG bindings with cross-runtime typemaps that enable native `OEMolBase` passing
-  between Python and C++ (no SMILES serialization)
+  between Python and C++
 - A boilerplate `calculate_molecular_weight` function to demonstrate the pattern
 - [scikit-build-core](https://scikit-build-core.readthedocs.io/) packaging with CMake
 - A standardized `build_python.py` script for building distributable wheels
 - A GitHub Actions workflow for multi-platform wheel building (Linux x86_64, Linux
   aarch64, macOS arm64)
 - [vrzn](https://github.com/scott-arne/vrzn) configuration for version management
-- Python tests validating native molecule passing
+- C++ and Python test suites
 
 ## Requirements
 
 - Python 3.10+
 - [Cookiecutter](https://cookiecutter.readthedocs.io/) (`pip install cookiecutter`)
 
-## Usage
+## Quick Start
 
 ```bash
 cookiecutter gh:scott-arne/cookiecutter-openeye-swig
@@ -32,6 +32,12 @@ Or from a local clone:
 ```bash
 cookiecutter /path/to/cookiecutter-openeye-swig
 ```
+
+The post-generation hook initializes a Git repository and stages all files
+automatically. From there, follow the getting-started instructions in the
+generated project's own `README.md`.
+
+## Template Variables
 
 You will be prompted for the following values:
 
@@ -49,6 +55,7 @@ You will be prompted for the following values:
 | `cmake_openeye_version` | v1.0.2 | cmake-openeye Git tag |
 | `initial_version` | 0.1.0 | Starting version number |
 | `python_min_version` | 3.10 | Minimum Python version |
+| `cloud_provider` | gcs | Cloud provider for CI (gcs, aws, or none) |
 | `use_stable_abi` | false | Use Python stable ABI (version-independent wheels) |
 
 ## Generated Project Structure
@@ -75,7 +82,11 @@ myproject/
     scripts/
         build_python.py         # TOML-driven wheel build script
     tests/
+        cpp/
+            CMakeLists.txt      # C++ test build (GTest via FetchContent)
+            test_myproject.cpp  # C++ unit tests
         python/
+            conftest.py         # Pytest fixtures (molecule helpers)
             test_myproject.py   # Tests for native molecule passing
     .github/
         workflows/
@@ -132,6 +143,44 @@ example. To add your own C++ functions:
 Functions that accept `OEMolBase&` or `const OEMolBase&` parameters will
 automatically use the cross-runtime typemaps -- no additional SWIG configuration
 is needed.
+
+## Tools
+
+This template builds on several tools:
+
+| Tool | Purpose |
+|------|---------|
+| [Cookiecutter](https://cookiecutter.readthedocs.io/) | Project scaffolding from this template |
+| [CMake](https://cmake.org/) | Build system for C++ library and SWIG bindings |
+| [SWIG](https://www.swig.org/) | Generates Python bindings from C++ headers |
+| [scikit-build-core](https://scikit-build-core.readthedocs.io/) | Python build backend that delegates to CMake |
+| [cmake-openeye](https://github.com/scott-arne/cmake-openeye) | CMake modules for finding OpenEye SDK and building SWIG targets |
+| [vrzn](https://github.com/scott-arne/vrzn) | Keeps version numbers in sync across pyproject.toml, CMakeLists.txt, C++ headers, and Python source |
+| [delocate](https://github.com/matthew-brett/delocate) / [auditwheel](https://github.com/pypa/auditwheel) | Bundles shared libraries into wheels (macOS / Linux) |
+
+## Testing the Template
+
+The template itself has a test suite that validates generation, file content, and
+(when a C++ SDK is available) build and integration behavior.
+
+```bash
+pip install cookiecutter pytest
+pytest tests/ -v
+```
+
+Test markers control which tests run:
+
+| Marker | Requires | What It Tests |
+|--------|----------|---------------|
+| `template` | Nothing | Generation, file content, Jinja rendering |
+| `build` | `OPENEYE_ROOT` | CMake configure and compile |
+| `integration` | `OPENEYE_ROOT` + `OE_LICENSE` | Full build, install, and pytest inside the generated project |
+
+Run only the template tests (no SDK needed):
+
+```bash
+pytest tests/ -v -m template
+```
 
 ## License
 

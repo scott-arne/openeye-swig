@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  GCS_BUCKET: openeye-sdks
+  GCS_BUCKET: openeye-sdks  # Configure this as a GitHub secret or change based on cloud_provider
   OPENEYE_VERSION: "{{ cookiecutter.openeye_version }}"
 
 jobs:
