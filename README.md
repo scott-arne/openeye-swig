@@ -6,8 +6,9 @@ projects that use [OpenEye Toolkits](https://www.eyesopen.com/) with SWIG bindin
 The generated project includes:
 
 - A C++ library linked against OpenEye OEChem
-- SWIG bindings with cross-runtime typemaps that enable native `OEMolBase` passing
-  between Python and C++
+- SWIG bindings with cross-runtime typemaps (bridging OpenEye's SWIG v4 runtime
+  and your project's SWIG v5 runtime) that enable native `OEMolBase` passing
+  between Python and C++ without serialization
 - A boilerplate `calculate_molecular_weight` function to demonstrate the pattern
 - [scikit-build-core](https://scikit-build-core.readthedocs.io/) packaging with CMake
 - A standardized `build_python.py` script for building distributable wheels
@@ -55,8 +56,8 @@ You will be prompted for the following values:
 | `cmake_openeye_version` | v1.0.2 | cmake-openeye Git tag |
 | `initial_version` | 0.1.0 | Starting version number |
 | `python_min_version` | 3.10 | Minimum Python version |
-| `cloud_provider` | gcs | Cloud provider for CI (gcs, aws, or none) |
-| `use_stable_abi` | false | Use Python stable ABI (version-independent wheels) |
+| `cloud_provider` | gcs | Cloud provider for CI OpenEye SDK download (gcs, aws, or none) |
+| `use_stable_abi` | true | Use Python stable ABI (version-independent wheels) |
 
 ## Generated Project Structure
 
@@ -108,8 +109,7 @@ The generated SWIG interface solves this with a compatibility layer that:
    across SWIG versions)
 3. Casts the pointer to the C++ type expected by your functions
 
-This allows passing `OEGraphMol` and `OEMol` objects created by `openeye.oechem`
-directly to your C++ functions without SMILES serialization.
+This allows passing of native OpenEye objects directly to your C++ functions.
 
 ### TOML-Driven Build Script
 
@@ -141,22 +141,19 @@ example. To add your own C++ functions:
 5. Add tests in `tests/python/`
 
 Functions that accept `OEMolBase&` or `const OEMolBase&` parameters will
-automatically use the cross-runtime typemaps -- no additional SWIG configuration
-is needed.
+automatically use the cross-runtime typemaps to bridge the SWIG version
+boundary -- no additional SWIG configuration is needed.
 
-## Tools
+## Key Dependencies
 
-This template builds on several tools:
-
-| Tool | Purpose |
+| Tool | Role in this template |
 |------|---------|
-| [Cookiecutter](https://cookiecutter.readthedocs.io/) | Project scaffolding from this template |
-| [CMake](https://cmake.org/) | Build system for C++ library and SWIG bindings |
-| [SWIG](https://www.swig.org/) | Generates Python bindings from C++ headers |
-| [scikit-build-core](https://scikit-build-core.readthedocs.io/) | Python build backend that delegates to CMake |
-| [cmake-openeye](https://github.com/scott-arne/cmake-openeye) | CMake modules for finding OpenEye SDK and building SWIG targets |
-| [vrzn](https://github.com/scott-arne/vrzn) | Keeps version numbers in sync across pyproject.toml, CMakeLists.txt, C++ headers, and Python source |
-| [delocate](https://github.com/matthew-brett/delocate) / [auditwheel](https://github.com/pypa/auditwheel) | Bundles shared libraries into wheels (macOS / Linux) |
+| [Cookiecutter](https://cookiecutter.readthedocs.io/) | Project scaffolding engine |
+| [cmake-openeye](https://github.com/scott-arne/cmake-openeye) | CMake modules for finding the OpenEye SDK and building SWIG targets |
+| [vrzn](https://github.com/scott-arne/vrzn) | Keeps version numbers in sync across all generated files |
+
+Generated projects also depend on CMake, SWIG, scikit-build-core, delocate/auditwheel,
+and pytest. See the generated project's `README.md` for the full list.
 
 ## Testing the Template
 

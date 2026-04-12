@@ -2,10 +2,24 @@
 """Post-generation hook for cookiecutter template."""
 
 import subprocess
+import sys
+
+
+def _run(cmd):
+    """Run a command, printing a warning on failure instead of aborting."""
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(
+            f"WARNING: '{' '.join(cmd)}' failed (exit {result.returncode}).",
+            file=sys.stderr,
+        )
+        if result.stderr.strip():
+            print(f"  {result.stderr.strip()}", file=sys.stderr)
+
 
 # Initialize git repository
-subprocess.run(["git", "init"], check=False)
-subprocess.run(["git", "add", "."], check=False)
+_run(["git", "init"])
+_run(["git", "add", "."])
 
 print("")
 print("Project {{ cookiecutter.project_slug }} created successfully!")

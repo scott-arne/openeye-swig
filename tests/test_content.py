@@ -189,7 +189,7 @@ class TestVrznIntegration:
         config = load_config(config_path)
         root = config_path.parent
         locations = locations_from_config(config, root)
-        assert len(locations) >= 6, f"Expected at least 6 locations, got {len(locations)}"
+        assert len(locations) >= 7, f"Expected at least 7 locations, got {len(locations)}"
         for loc in locations:
             raw = loc.read_version()
             assert raw is not None, f"vrzn cannot read version from {loc.label} ({loc.file})"

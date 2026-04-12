@@ -372,9 +372,9 @@ OE_CROSS_RUNTIME_REF_TYPEMAPS(OEDocking::OEReceptor, _{{ cookiecutter.project_sl
 // ============================================================================
 // Version macros
 // ============================================================================
-#define {{ cookiecutter.project_prefix }}_VERSION_MAJOR 0
-#define {{ cookiecutter.project_prefix }}_VERSION_MINOR 1
-#define {{ cookiecutter.project_prefix }}_VERSION_PATCH 0
+#define {{ cookiecutter.project_prefix }}_VERSION_MAJOR {{ cookiecutter.initial_version.split('.')[0] }}
+#define {{ cookiecutter.project_prefix }}_VERSION_MINOR {{ cookiecutter.initial_version.split('.')[1] }}
+#define {{ cookiecutter.project_prefix }}_VERSION_PATCH {{ cookiecutter.initial_version.split('.')[2] }}
 
 // ============================================================================
 // Wrapped API

@@ -22,3 +22,8 @@ type = "cmake-project"
 file = "include/{{ cookiecutter.project_slug }}/{{ cookiecutter.project_slug }}.h"
 type = "c-define"
 prefix = "{{ cookiecutter.project_prefix }}"
+
+[[locations]]
+file = "swig/{{ cookiecutter.project_slug }}.i"
+type = "c-define"
+prefix = "{{ cookiecutter.project_prefix }}"

@@ -12,5 +12,9 @@
     "initial_version": "0.1.0",
     "python_min_version": "3.10",
     "cloud_provider": ["gcs", "aws", "none"],
-    "use_stable_abi": ["true", "false"]
+    "use_stable_abi": ["true", "false"],
+    "_jinja2_env_vars": {
+        "trim_blocks": true,
+        "lstrip_blocks": true
+    }
 }

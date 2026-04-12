@@ -38,18 +38,18 @@ build.targets = ["{{ cookiecutter.project_slug }}_python"]
 wheel.install-dir = "."
 logging.level = "INFO"
 strict-config = false
-{% if cookiecutter.use_stable_abi == "true" -%}
+{% if cookiecutter.use_stable_abi == "true" %}
 wheel.py-api = "cp{{ cookiecutter.python_min_version.replace('.', '') }}"
-{%- endif %}
+{% endif %}
 wheel.exclude = ["**.pyc", "**/__pycache__", "*.a", "CMakeFiles/**"]
 
 [tool.scikit-build.cmake.define]
 {{ cookiecutter.project_prefix }}_BUILD_TESTS = "OFF"
 {{ cookiecutter.project_prefix }}_BUILD_PYTHON = "ON"
 OPENEYE_USE_SHARED = "ON"
-{% if cookiecutter.use_stable_abi == "true" -%}
+{% if cookiecutter.use_stable_abi == "true" %}
 {{ cookiecutter.project_prefix }}_USE_STABLE_ABI = "ON"
-{%- endif %}
+{% endif %}
 {{ cookiecutter.project_prefix }}_UNIVERSAL2 = "OFF"
 
 # =============================================================================

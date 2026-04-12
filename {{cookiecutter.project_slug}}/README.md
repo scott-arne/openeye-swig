@@ -55,6 +55,11 @@ reflected after rebuilding:
 pip install --config-settings editable_mode=compat -e python/
 ```
 
+The `editable_mode=compat` flag is required because scikit-build-core's default
+editable mode uses import hooks that are incompatible with compiled SWIG
+extension modules. The compat mode installs the package as a traditional
+`.egg-link`, which works reliably with native extensions.
+
 ### 4. Run Tests
 
 C++ tests (built automatically with the debug preset):
@@ -224,14 +229,13 @@ to PyPI via trusted publishing on tag pushes.
 | Variable | Example | Description |
 |----------|---------|-------------|
 | `OPENEYE_VERSION` | `{{ cookiecutter.openeye_version }}` | OpenEye SDK version for CI |
-{%- if cookiecutter.cloud_provider != "none" %}
+{% if cookiecutter.cloud_provider != "none" %}
 | `SDK_BUCKET` | `openeye-sdks` | Cloud storage bucket name |
 | `SDK_LINUX_X86_64` | `OpenEye-toolkits-...-x64.tar.gz` | Linux x86_64 SDK filename |
 | `SDK_LINUX_AARCH64` | `OpenEye-toolkits-...-aarch64.tar.gz` | Linux aarch64 SDK filename |
 | `SDK_MACOS` | `OpenEye-toolkits-...-universal.tar.gz` | macOS SDK filename |
-{%- endif %}
-
-{%- if cookiecutter.cloud_provider == "gcs" %}
+{% endif %}
+{% if cookiecutter.cloud_provider == "gcs" %}
 
 **Required GitHub Secrets:**
 
@@ -242,7 +246,7 @@ to PyPI via trusted publishing on tag pushes.
 
 The OpenEye C++ SDK and license file are downloaded from a GCS bucket
 (`SDK_BUCKET`) during CI.
-{%- elif cookiecutter.cloud_provider == "aws" %}
+{% elif cookiecutter.cloud_provider == "aws" %}
 
 **Required GitHub Secrets:**
 
@@ -252,12 +256,12 @@ The OpenEye C++ SDK and license file are downloaded from a GCS bucket
 
 The OpenEye C++ SDK and license file are downloaded from an S3 bucket
 (`SDK_BUCKET`) during CI.
-{%- elif cookiecutter.cloud_provider == "none" %}
+{% elif cookiecutter.cloud_provider == "none" %}
 
 **Note:** The CI workflow includes placeholder download steps that will fail
 with an error. Replace them with your own SDK and license download commands
 in `.github/workflows/build-wheels.yml`.
-{%- endif %}
+{% endif %}
 
 ## CMake Options
 
@@ -287,7 +291,7 @@ This project uses several tools to manage the build, packaging, and versioning:
 
 This project uses [vrzn](https://github.com/scott-arne/vrzn) to keep version
 numbers consistent across all project files. The `vrzn.toml` configuration
-tracks six version locations:
+tracks seven version locations:
 
 | File | Location Type |
 |------|---------------|
@@ -297,6 +301,7 @@ tracks six version locations:
 | `python/{{ cookiecutter.project_slug }}/__init__.py` | `__version_info__` |
 | `CMakeLists.txt` | `project(... VERSION ...)` |
 | `include/{{ cookiecutter.project_slug }}/{{ cookiecutter.project_slug }}.h` | `#define` version macros |
+| `swig/{{ cookiecutter.project_slug }}.i` | `#define` version macros |
 
 Common commands:
 

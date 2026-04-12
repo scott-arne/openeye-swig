@@ -8,18 +8,14 @@ on:
 env:
   OPENEYE_VERSION: {% raw %}${{ vars.OPENEYE_VERSION }}{% endraw %}
 
+
 jobs:
   build-linux:
 {% raw %}
     permissions:
       contents: read
-{% endraw %}
-{% if cookiecutter.cloud_provider != "none" %}
-{% raw %}
-      id-token: write
-{% endraw %}
-{% endif %}
-{% raw %}
+{% endraw %}{% if cookiecutter.cloud_provider != "none" %}{% raw %}      id-token: write
+{% endraw %}{% endif %}{% raw %}
     strategy:
       fail-fast: false
       matrix:
@@ -50,15 +46,9 @@ jobs:
             git curl unzip gcc gcc-c++ cmake ninja-build \
             python3.11 python3.11-devel \
             zlib-devel cairo
-{% endraw %}
-{% if cookiecutter.cloud_provider == "aws" %}
-{% raw %}
-          curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o /tmp/awscliv2.zip
+{% endraw %}{% if cookiecutter.cloud_provider == "aws" %}{% raw %}          curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o /tmp/awscliv2.zip
           unzip -q /tmp/awscliv2.zip -d /tmp && /tmp/aws/install && rm -rf /tmp/aws /tmp/awscliv2.zip
-{% endraw %}
-{% endif %}
-{% raw %}
-
+{% endraw %}{% endif %}{% raw %}
       - uses: actions/checkout@v6
 
       - name: Setup Python environment
@@ -71,10 +61,7 @@ jobs:
       - name: Validate configuration
         run: |
           errors=0
-{% endraw %}
-{% if cookiecutter.cloud_provider != "none" %}
-{% raw %}
-          if [ -z "${{ vars.OPENEYE_VERSION }}" ]; then
+{% endraw %}{% if cookiecutter.cloud_provider != "none" %}{% raw %}          if [ -z "${{ vars.OPENEYE_VERSION }}" ]; then
             echo "::error::GitHub variable OPENEYE_VERSION is not set"
             errors=1
           fi
@@ -87,23 +74,15 @@ jobs:
             echo "::error::GitHub variable for SDK filename (SDK_LINUX_X86_64 or SDK_LINUX_AARCH64) is not set"
             errors=1
           fi
-{% endraw %}
-{% else %}
-{% raw %}
-          if [ -z "${{ vars.OPENEYE_VERSION }}" ]; then
+{% endraw %}{% else %}{% raw %}          if [ -z "${{ vars.OPENEYE_VERSION }}" ]; then
             echo "::error::GitHub variable OPENEYE_VERSION is not set"
             errors=1
           fi
-{% endraw %}
-{% endif %}
-{% raw %}
-          if [ "$errors" -ne 0 ]; then
+{% endraw %}{% endif %}{% raw %}          if [ "$errors" -ne 0 ]; then
             echo "::error::Configure required variables in Settings > Variables > Actions"
             exit 1
           fi
-{% endraw %}
-{% if cookiecutter.cloud_provider == "gcs" %}
-{% raw %}
+{% endraw %}{% if cookiecutter.cloud_provider == "gcs" %}{% raw %}
       - name: Authenticate to Google Cloud
         id: gcp-auth
         uses: google-github-actions/auth@v3
@@ -132,10 +111,7 @@ jobs:
             "https://storage.googleapis.com/${{ vars.SDK_BUCKET }}/oe_license.txt" \
             -o /opt/openeye/oe_license.txt
           echo "OE_LICENSE=/opt/openeye/oe_license.txt" >> $GITHUB_ENV
-{% endraw %}
-{% endif %}
-{% if cookiecutter.cloud_provider == "aws" %}
-{% raw %}
+{% endraw %}{% endif %}{% if cookiecutter.cloud_provider == "aws" %}{% raw %}
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -156,10 +132,7 @@ jobs:
         run: |
           aws s3 cp "s3://${{ vars.SDK_BUCKET }}/oe_license.txt" /opt/openeye/oe_license.txt
           echo "OE_LICENSE=/opt/openeye/oe_license.txt" >> $GITHUB_ENV
-{% endraw %}
-{% endif %}
-{% if cookiecutter.cloud_provider == "none" %}
-{% raw %}
+{% endraw %}{% endif %}{% if cookiecutter.cloud_provider == "none" %}{% raw %}
       - name: Download OpenEye SDK
         run: |
           # TODO: Replace this step with your SDK download commands.
@@ -175,9 +148,7 @@ jobs:
           echo "::error::No cloud provider configured. Replace this step with your license download commands."
           echo "::error::The license must be written to /opt/openeye/oe_license.txt."
           exit 1
-{% endraw %}
-{% endif %}
-{% raw %}
+{% endraw %}{% endif %}{% raw %}
       - name: Install openeye-toolkits Python package
         run: |
           /opt/venv/bin/pip install openeye-toolkits==${{ vars.OPENEYE_VERSION }} \
@@ -208,24 +179,18 @@ jobs:
             $EXCLUDE_ARGS \
             --plat ${{ matrix.manylinux_plat }} \
             --wheel-dir dist-repaired/ \
-{% endraw %}
-            dist/{{ cookiecutter.project_slug }}-*.whl
-          rm dist/{{ cookiecutter.project_slug }}-*.whl
-{% raw %}
+{% endraw %}            dist/{{ cookiecutter.project_slug }}-*.whl
+          rm dist/{{ cookiecutter.project_slug }}-*.whl{% raw %}
           mv dist-repaired/*.whl dist/
 
       - name: Fix RPATH for OpenEye shared libraries
         run: |
           OE_PLATFORM=$(/opt/venv/bin/python -c \
             "from openeye import libs; import os; print(os.path.basename(libs.FindOpenEyeDLLSDirectory()))")
-{% endraw %}
-          WHEEL=$(ls dist/{{ cookiecutter.project_slug }}-*.whl)
-{% raw %}
+{% endraw %}          WHEEL=$(ls dist/{{ cookiecutter.project_slug }}-*.whl){% raw %}
           TMPDIR=$(mktemp -d)
           unzip -q "$WHEEL" -d "$TMPDIR"
-{% endraw %}
-          SO_FILE=$(find "$TMPDIR" -name '_{{ cookiecutter.project_slug }}*.so' | head -1)
-{% raw %}
+{% endraw %}          SO_FILE=$(find "$TMPDIR" -name '_{{ cookiecutter.project_slug }}*.so' | head -1){% raw %}
           if [ -n "$SO_FILE" ]; then
             patchelf --add-rpath '$ORIGIN' "$SO_FILE"
             patchelf --add-rpath "\$ORIGIN/../openeye/libs/$OE_PLATFORM" "$SO_FILE"
@@ -238,9 +203,7 @@ jobs:
       - name: Test wheel
         run: |
           /opt/venv/bin/pip install pytest
-{% endraw %}
-          /opt/venv/bin/pip install dist/{{ cookiecutter.project_slug }}-*.whl
-{% raw %}
+{% endraw %}          /opt/venv/bin/pip install dist/{{ cookiecutter.project_slug }}-*.whl{% raw %}
           /opt/venv/bin/pytest tests/python/ -v -s
 
       - name: List built artifacts
@@ -254,18 +217,12 @@ jobs:
           path: dist/*.whl
           retention-days: 30
 {% endraw %}
-
   build-macos:
 {% raw %}
     permissions:
       contents: read
-{% endraw %}
-{% if cookiecutter.cloud_provider != "none" %}
-{% raw %}
-      id-token: write
-{% endraw %}
-{% endif %}
-{% raw %}
+{% endraw %}{% if cookiecutter.cloud_provider != "none" %}{% raw %}      id-token: write
+{% endraw %}{% endif %}{% raw %}
     runs-on: macos-latest
 
     steps:
@@ -279,23 +236,14 @@ jobs:
       - name: Install build dependencies
         run: |
           brew install swig
-{% endraw %}
-{% if cookiecutter.cloud_provider == "aws" %}
-{% raw %}
-          brew install awscli
-{% endraw %}
-{% endif %}
-{% raw %}
-          pip install --upgrade pip setuptools wheel
+{% endraw %}{% if cookiecutter.cloud_provider == "aws" %}{% raw %}          brew install awscli
+{% endraw %}{% endif %}{% raw %}          pip install --upgrade pip setuptools wheel
           pip install scikit-build-core ninja cmake build delocate
 
       - name: Validate configuration
         run: |
           errors=0
-{% endraw %}
-{% if cookiecutter.cloud_provider != "none" %}
-{% raw %}
-          if [ -z "${{ vars.OPENEYE_VERSION }}" ]; then
+{% endraw %}{% if cookiecutter.cloud_provider != "none" %}{% raw %}          if [ -z "${{ vars.OPENEYE_VERSION }}" ]; then
             echo "::error::GitHub variable OPENEYE_VERSION is not set"
             errors=1
           fi
@@ -307,23 +255,15 @@ jobs:
             echo "::error::GitHub variable SDK_MACOS is not set"
             errors=1
           fi
-{% endraw %}
-{% else %}
-{% raw %}
-          if [ -z "${{ vars.OPENEYE_VERSION }}" ]; then
+{% endraw %}{% else %}{% raw %}          if [ -z "${{ vars.OPENEYE_VERSION }}" ]; then
             echo "::error::GitHub variable OPENEYE_VERSION is not set"
             errors=1
           fi
-{% endraw %}
-{% endif %}
-{% raw %}
-          if [ "$errors" -ne 0 ]; then
+{% endraw %}{% endif %}{% raw %}          if [ "$errors" -ne 0 ]; then
             echo "::error::Configure required variables in Settings > Variables > Actions"
             exit 1
           fi
-{% endraw %}
-{% if cookiecutter.cloud_provider == "gcs" %}
-{% raw %}
+{% endraw %}{% if cookiecutter.cloud_provider == "gcs" %}{% raw %}
       - name: Authenticate to Google Cloud
         id: gcp-auth
         uses: google-github-actions/auth@v3
@@ -350,10 +290,7 @@ jobs:
             "https://storage.googleapis.com/${{ vars.SDK_BUCKET }}/oe_license.txt" \
             -o ${{ runner.temp }}/openeye/oe_license.txt
           echo "OE_LICENSE=${{ runner.temp }}/openeye/oe_license.txt" >> $GITHUB_ENV
-{% endraw %}
-{% endif %}
-{% if cookiecutter.cloud_provider == "aws" %}
-{% raw %}
+{% endraw %}{% endif %}{% if cookiecutter.cloud_provider == "aws" %}{% raw %}
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -372,10 +309,7 @@ jobs:
         run: |
           aws s3 cp "s3://${{ vars.SDK_BUCKET }}/oe_license.txt" ${{ runner.temp }}/openeye/oe_license.txt
           echo "OE_LICENSE=${{ runner.temp }}/openeye/oe_license.txt" >> $GITHUB_ENV
-{% endraw %}
-{% endif %}
-{% if cookiecutter.cloud_provider == "none" %}
-{% raw %}
+{% endraw %}{% endif %}{% if cookiecutter.cloud_provider == "none" %}{% raw %}
       - name: Download OpenEye SDK
         run: |
           # TODO: Replace this step with your SDK download commands.
@@ -391,9 +325,7 @@ jobs:
           echo "::error::No cloud provider configured. Replace this step with your license download commands."
           echo "::error::The license must be written to $RUNNER_TEMP/openeye/oe_license.txt."
           exit 1
-{% endraw %}
-{% endif %}
-{% raw %}
+{% endraw %}{% endif %}{% raw %}
       - name: Install openeye-toolkits Python package
         run: |
           pip install openeye-toolkits==${{ vars.OPENEYE_VERSION }} \
@@ -415,9 +347,7 @@ jobs:
       - name: Test wheel
         run: |
           pip install pytest
-{% endraw %}
-          pip install dist/{{ cookiecutter.project_slug }}-*.whl
-{% raw %}
+{% endraw %}          pip install dist/{{ cookiecutter.project_slug }}-*.whl{% raw %}
           pytest tests/python/ -v -s
 
       - name: List built artifacts
@@ -431,7 +361,6 @@ jobs:
           path: dist/*.whl
           retention-days: 30
 {% endraw %}
-
   # Collect all wheels into a single artifact
   collect-wheels:
 {% raw %}
@@ -456,7 +385,6 @@ jobs:
           path: wheels/*.whl
           retention-days: 30
 {% endraw %}
-
   # Publish to PyPI on release tags
   publish:
 {% raw %}
