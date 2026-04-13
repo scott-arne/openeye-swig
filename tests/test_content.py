@@ -140,6 +140,12 @@ class TestPythonPackage:
         assert "calculate_molecular_weight" in content
         assert "__all__" in content
 
+    def test_init_py_preload_bundled_libs(self, generated_project):
+        """__init__.py defines _preload_bundled_libs and calls it during init."""
+        content = (generated_project / f"python/{DEFAULT_SLUG}/__init__.py").read_text()
+        assert "def _preload_bundled_libs():" in content
+        assert "_preload_bundled_libs()" in content
+
     def test_inner_pyproject_package_name(self, generated_project):
         """python/pyproject.toml has the correct package name."""
         content = (generated_project / "python/pyproject.toml").read_text()
