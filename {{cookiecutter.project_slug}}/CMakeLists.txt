@@ -13,8 +13,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Options
 option({{ cookiecutter.project_prefix }}_BUILD_TESTS "Build tests" ON)
 option({{ cookiecutter.project_prefix }}_BUILD_PYTHON "Build Python bindings" ON)
-option({{ cookiecutter.project_prefix }}_UNIVERSAL2 "Build universal2 binary for macOS" OFF)
-option({{ cookiecutter.project_prefix }}_USE_STABLE_ABI "Use Python stable ABI" OFF)
+option({{ cookiecutter.project_prefix }}_UNIVERSAL2 "Build universal2 binary for macOS" ON)
+option({{ cookiecutter.project_prefix }}_USE_STABLE_ABI "Use Python stable ABI" ON)
 
 if(APPLE AND {{ cookiecutter.project_prefix }}_UNIVERSAL2)
     set(CMAKE_OSX_ARCHITECTURES "x86_64;arm64" CACHE STRING "Build architectures" FORCE)

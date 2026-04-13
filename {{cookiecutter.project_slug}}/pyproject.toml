@@ -50,7 +50,7 @@ OPENEYE_USE_SHARED = "ON"
 {% if cookiecutter.use_stable_abi == "true" %}
 {{ cookiecutter.project_prefix }}_USE_STABLE_ABI = "ON"
 {% endif %}
-{{ cookiecutter.project_prefix }}_UNIVERSAL2 = "OFF"
+{{ cookiecutter.project_prefix }}_UNIVERSAL2 = "ON"
 
 # =============================================================================
 # TOML-driven build configuration for scripts/build_python.py

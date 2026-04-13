@@ -269,8 +269,8 @@ in `.github/workflows/build-wheels.yml`.
 |--------|---------|-------------|
 | `{{ cookiecutter.project_prefix }}_BUILD_TESTS` | ON | Build C++ tests |
 | `{{ cookiecutter.project_prefix }}_BUILD_PYTHON` | ON | Build Python SWIG bindings |
-| `{{ cookiecutter.project_prefix }}_UNIVERSAL2` | OFF | Build macOS universal2 binary |
-| `{{ cookiecutter.project_prefix }}_USE_STABLE_ABI` | OFF | Use Python stable ABI (abi3) |
+| `{{ cookiecutter.project_prefix }}_UNIVERSAL2` | ON | Build macOS universal2 binary |
+| `{{ cookiecutter.project_prefix }}_USE_STABLE_ABI` | ON | Use Python stable ABI (abi3) |
 
 ## Tools
 
