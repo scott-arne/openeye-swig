@@ -64,7 +64,7 @@ You will be prompted for the following values:
 ```
 myproject/
     CMakeLists.txt              # Top-level CMake configuration
-    CMakePresets.json            # CMake presets (debug/release)
+    CMakePresets.json           # CMake presets (debug/release)
     pyproject.toml              # scikit-build-core config + [tool.oe-build]
     vrzn.toml                   # Version location config for vrzn
     LICENSE
@@ -75,7 +75,7 @@ myproject/
         myproject.cpp           # C++ implementation
     swig/
         CMakeLists.txt          # SWIG module build via cmake-openeye
-        myproject.i             # SWIG interface with OEMolBase typemaps
+        myproject.i             # SWIG interface with OpenEye typemaps
     python/
         pyproject.toml          # Setuptools config for editable installs
         myproject/
