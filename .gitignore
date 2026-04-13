@@ -30,5 +30,6 @@ oe_license.txt
 # User CMake presets (may contain local paths)
 CMakeUserPresets.json
 
-# Claude
+# Development tools
+.claude/
 docs/superpowers

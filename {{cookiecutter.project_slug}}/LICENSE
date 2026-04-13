@@ -52,7 +52,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 {%elif cookiecutter.license == "Apache-2.0" %}
 Apache License, Version 2.0
 
-Copyright {{ cookiecutter.author_name }}
+Copyright (c) {{ cookiecutter.author_name }}
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

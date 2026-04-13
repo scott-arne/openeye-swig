@@ -25,13 +25,13 @@ The generated project includes:
 ## Quick Start
 
 ```bash
-cookiecutter gh:scott-arne/cookiecutter-openeye-swig
+cookiecutter gh:scott-arne/openeye-swig
 ```
 
 Or from a local clone:
 
 ```bash
-cookiecutter /path/to/cookiecutter-openeye-swig
+cookiecutter /path/to/openeye-swig
 ```
 
 The post-generation hook initializes a Git repository and stages all files
