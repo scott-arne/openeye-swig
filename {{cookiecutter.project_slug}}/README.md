@@ -19,15 +19,18 @@ This project provides a C++ library with Python bindings built using SWIG and
 
 ### 1. Configure the OpenEye SDK Path
 
-Create a local presets file that points CMake to your OpenEye C++ SDK:
+Set the `OPENEYE_ROOT` environment variable to point to your OpenEye C++ SDK
+installation (the directory containing `include/` and `lib/`):
 
 ```bash
-cp CMakePresets.json CMakeUserPresets.json
+export OPENEYE_ROOT=/path/to/openeye/sdk
 ```
 
-Edit `CMakeUserPresets.json` and replace `/path/to/openeye/sdk` with the actual
-path to your OpenEye C++ SDK installation (the directory containing `include/`
-and `lib/`). This file is gitignored so it won't be committed.
+The CMake presets read this variable automatically. You can also set
+`Python3_EXECUTABLE` if you need a specific Python interpreter.
+
+Alternatively, create a `CMakeUserPresets.json` (gitignored) to override
+these values permanently for your local machine.
 
 ### 2. Build the C++ Library and SWIG Bindings
 
@@ -269,7 +272,7 @@ in `.github/workflows/build-wheels.yml`.
 |--------|---------|-------------|
 | `{{ cookiecutter.project_prefix }}_BUILD_TESTS` | ON | Build C++ tests |
 | `{{ cookiecutter.project_prefix }}_BUILD_PYTHON` | ON | Build Python SWIG bindings |
-| `{{ cookiecutter.project_prefix }}_UNIVERSAL2` | ON | Build macOS universal2 binary |
+| `{{ cookiecutter.project_prefix }}_UNIVERSAL2` | OFF | Build macOS universal2 binary |
 | `{{ cookiecutter.project_prefix }}_USE_STABLE_ABI` | ON | Use Python stable ABI (abi3) |
 
 ## Tools

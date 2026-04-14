@@ -29,6 +29,8 @@ dev = ["pytest>=7.0", "vrzn>=0.1.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests/python"]
+python_files = ["test_*.py"]
+addopts = "-v"
 
 [tool.scikit-build]
 cmake.version = ">=3.21"
@@ -50,7 +52,7 @@ OPENEYE_USE_SHARED = "ON"
 {% if cookiecutter.use_stable_abi == "true" %}
 {{ cookiecutter.project_prefix }}_USE_STABLE_ABI = "ON"
 {% endif %}
-{{ cookiecutter.project_prefix }}_UNIVERSAL2 = "ON"
+{{ cookiecutter.project_prefix }}_UNIVERSAL2 = "OFF"
 
 # =============================================================================
 # TOML-driven build configuration for scripts/build_python.py

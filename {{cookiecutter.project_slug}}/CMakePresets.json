@@ -7,31 +7,26 @@
     },
     "configurePresets": [
         {
-            "name": "default",
-            "hidden": true,
+            "name": "release",
+            "binaryDir": "${sourceDir}/build-release",
             "cacheVariables": {
-                "OPENEYE_ROOT": "/path/to/openeye/sdk"
+                "CMAKE_BUILD_TYPE": "Release",
+                "OPENEYE_ROOT": {"type": "PATH", "value": "$env{OPENEYE_ROOT}"},
+                "Python3_EXECUTABLE": {"type": "PATH", "value": "$env{Python3_EXECUTABLE}"}
             }
         },
         {
             "name": "debug",
-            "inherits": "default",
             "binaryDir": "${sourceDir}/build-debug",
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug"
-            }
-        },
-        {
-            "name": "release",
-            "inherits": "default",
-            "binaryDir": "${sourceDir}/build-release",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release"
+                "CMAKE_BUILD_TYPE": "Debug",
+                "OPENEYE_ROOT": {"type": "PATH", "value": "$env{OPENEYE_ROOT}"},
+                "Python3_EXECUTABLE": {"type": "PATH", "value": "$env{Python3_EXECUTABLE}"}
             }
         }
     ],
     "buildPresets": [
-        { "name": "debug", "configurePreset": "debug" },
-        { "name": "release", "configurePreset": "release" }
+        { "name": "release", "configurePreset": "release" },
+        { "name": "debug", "configurePreset": "debug" }
     ]
 }
