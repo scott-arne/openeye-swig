@@ -215,7 +215,7 @@ jobs:
         with:
           name: wheel-linux-${{ matrix.arch }}
           path: dist/*.whl
-          retention-days: 30
+          retention-days: 2
 {% endraw %}
   build-macos:
 {% raw %}
@@ -359,7 +359,7 @@ jobs:
         with:
           name: wheel-macos-universal2
           path: dist/*.whl
-          retention-days: 30
+          retention-days: 2
 {% endraw %}
   # Collect all wheels into a single artifact
   collect-wheels:
@@ -383,7 +383,7 @@ jobs:
         with:
           name: all-wheels
           path: wheels/*.whl
-          retention-days: 30
+          retention-days: 2
 {% endraw %}
   # Publish to PyPI on release tags
   publish:
