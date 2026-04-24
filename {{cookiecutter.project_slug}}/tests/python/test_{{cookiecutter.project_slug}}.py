@@ -42,3 +42,4 @@ class TestCalculateMolecularWeight:
         assert hasattr({{ cookiecutter.project_slug }}, '__version__')
         assert hasattr({{ cookiecutter.project_slug }}, '__version_info__')
         assert {{ cookiecutter.project_slug }}.__version__ == "{{ cookiecutter.initial_version }}"
+        assert {{ cookiecutter.project_slug }}.__version_info__ == ({{ cookiecutter.initial_version.replace('.', ', ') }})

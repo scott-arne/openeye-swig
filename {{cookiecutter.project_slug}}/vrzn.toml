@@ -27,3 +27,15 @@ prefix = "{{ cookiecutter.project_prefix }}"
 file = "swig/{{ cookiecutter.project_slug }}.i"
 type = "c-define"
 prefix = "{{ cookiecutter.project_prefix }}"
+
+[[locations]]
+file = "tests/python/test_{{ cookiecutter.project_slug }}.py"
+type = "custom"
+template = '{{ cookiecutter.project_slug }}\.__version__ == "{version}"'
+label = "test-version-string"
+
+[[locations]]
+file = "tests/python/test_{{ cookiecutter.project_slug }}.py"
+type = "custom"
+template = '{{ cookiecutter.project_slug }}\.__version_info__ == \({info_tuple}\)'
+label = "test-version-info"
