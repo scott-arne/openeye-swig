@@ -549,11 +549,11 @@ jobs:
           # Install the wheel into a different Python minor than the build
           # Python (3.11) to verify the stable-ABI contract actually holds.
           python -m pip install --upgrade pip
-{% endraw %}          pip install dist/{{ cookiecutter.project_slug }}-*.whl{% raw %}
           pip install "openeye-toolkits==${{ vars.OPENEYE_VERSION }}" \
             --extra-index-url https://pypi.anaconda.org/openeye/simple \
             --no-cache-dir
-{% endraw %}          python -c "import {{ cookiecutter.project_slug }}; print('{{ cookiecutter.project_slug }}', {{ cookiecutter.project_slug }}.__version__, 'loaded under Python', __import__('sys').version)"{% raw %}
+{% endraw %}          pip install dist/{{ cookiecutter.project_slug }}-*.whl
+          python -c "import {{ cookiecutter.project_slug }}; print('{{ cookiecutter.project_slug }}', {{ cookiecutter.project_slug }}.__version__, 'loaded under Python', __import__('sys').version)"{% raw %}
 {% endraw %}{% endif %}{% raw %}
       - name: Upload wheel artifact
         uses: actions/upload-artifact@v7
