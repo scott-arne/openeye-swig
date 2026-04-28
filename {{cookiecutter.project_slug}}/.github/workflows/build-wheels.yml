@@ -361,10 +361,212 @@ jobs:
           path: dist/*.whl
           retention-days: 2
 {% endraw %}
+
+  build-windows:
+{% raw %}
+    permissions:
+      contents: read
+{% endraw %}{% if cookiecutter.cloud_provider != "none" %}{% raw %}      id-token: write
+{% endraw %}{% endif %}{% raw %}
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      # ilammy/msvc-dev-cmd still ships with `using: node20`; opt in to Node.js 24
+      # so the action keeps working past GitHub's June 2 2026 cutover without
+      # waiting on an upstream release.
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Setup MSVC dev environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install scikit-build-core ninja cmake build swig pytest
+
+      - name: Validate configuration
+        run: |
+          errors=0
+{% endraw %}{% if cookiecutter.cloud_provider != "none" %}{% raw %}          if [ -z "${{ vars.OPENEYE_VERSION }}" ]; then
+            echo "::error::GitHub variable OPENEYE_VERSION is not set"
+            errors=1
+          fi
+          if [ -z "${{ vars.SDK_BUCKET }}" ]; then
+            echo "::error::GitHub variable SDK_BUCKET is not set"
+            errors=1
+          fi
+          if [ -z "${{ vars.SDK_WINDOWS }}" ]; then
+            echo "::error::GitHub variable SDK_WINDOWS is not set"
+            errors=1
+          fi
+{% endraw %}{% else %}{% raw %}          if [ -z "${{ vars.OPENEYE_VERSION }}" ]; then
+            echo "::error::GitHub variable OPENEYE_VERSION is not set"
+            errors=1
+          fi
+{% endraw %}{% endif %}{% raw %}          if [ "$errors" -ne 0 ]; then
+            echo "::error::Configure required variables in Settings > Variables > Actions"
+            exit 1
+          fi
+{% endraw %}{% if cookiecutter.cloud_provider == "gcs" %}{% raw %}
+      - name: Authenticate to Google Cloud
+        id: gcp-auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+
+      - name: Download OpenEye SDK from GCS
+        run: |
+          mkdir -p "${RUNNER_TEMP}/openeye-extract"
+          curl -fsSL \
+            -H "Authorization: Bearer ${{ steps.gcp-auth.outputs.access_token }}" \
+            "https://storage.googleapis.com/${{ vars.SDK_BUCKET }}/${{ vars.SDK_WINDOWS }}" \
+            -o "${RUNNER_TEMP}/sdk.zip"
+          unzip -q "${RUNNER_TEMP}/sdk.zip" -d "${RUNNER_TEMP}/openeye-extract"
+          rm "${RUNNER_TEMP}/sdk.zip"
+          sdk_inner=$(find "${RUNNER_TEMP}/openeye-extract" -maxdepth 1 -mindepth 1 -type d | head -n1)
+          echo "OPENEYE_ROOT=${sdk_inner}" >> $GITHUB_ENV
+          ls "${sdk_inner}"
+
+      - name: Download OpenEye license from GCS
+        run: |
+          curl -fsSL \
+            -H "Authorization: Bearer ${{ steps.gcp-auth.outputs.access_token }}" \
+            "https://storage.googleapis.com/${{ vars.SDK_BUCKET }}/oe_license.txt" \
+            -o "${RUNNER_TEMP}/oe_license.txt"
+          echo "OE_LICENSE=${RUNNER_TEMP}/oe_license.txt" >> $GITHUB_ENV
+{% endraw %}{% endif %}{% if cookiecutter.cloud_provider == "aws" %}{% raw %}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Download OpenEye SDK from S3
+        run: |
+          mkdir -p "${RUNNER_TEMP}/openeye-extract"
+          aws s3 cp "s3://${{ vars.SDK_BUCKET }}/${{ vars.SDK_WINDOWS }}" "${RUNNER_TEMP}/sdk.zip"
+          unzip -q "${RUNNER_TEMP}/sdk.zip" -d "${RUNNER_TEMP}/openeye-extract"
+          rm "${RUNNER_TEMP}/sdk.zip"
+          sdk_inner=$(find "${RUNNER_TEMP}/openeye-extract" -maxdepth 1 -mindepth 1 -type d | head -n1)
+          echo "OPENEYE_ROOT=${sdk_inner}" >> $GITHUB_ENV
+          ls "${sdk_inner}"
+
+      - name: Download OpenEye license from S3
+        run: |
+          aws s3 cp "s3://${{ vars.SDK_BUCKET }}/oe_license.txt" "${RUNNER_TEMP}/oe_license.txt"
+          echo "OE_LICENSE=${RUNNER_TEMP}/oe_license.txt" >> $GITHUB_ENV
+{% endraw %}{% endif %}{% if cookiecutter.cloud_provider == "none" %}{% raw %}
+      - name: Download OpenEye SDK
+        run: |
+          # TODO: Replace this step with your SDK download commands.
+          # The SDK must be extracted under $RUNNER_TEMP/openeye-extract with
+          # the standard directory layout (include/, lib/). Set OPENEYE_ROOT
+          # in $GITHUB_ENV to point at the extracted tree.
+          echo "::error::No cloud provider configured. Replace this step with your SDK download commands."
+          exit 1
+
+      - name: Download OpenEye license
+        run: |
+          # TODO: Replace this step with your license download commands.
+          # The license must be written to $RUNNER_TEMP/oe_license.txt and
+          # OE_LICENSE exported to $GITHUB_ENV.
+          echo "::error::No cloud provider configured. Replace this step with your license download commands."
+          exit 1
+{% endraw %}{% endif %}{% raw %}
+      - name: Install openeye-toolkits Python package
+        run: |
+          pip install "openeye-toolkits==${{ vars.OPENEYE_VERSION }}" \
+            --extra-index-url https://pypi.anaconda.org/openeye/simple \
+            --no-cache-dir
+          echo "--- Verifying openeye-toolkits installation ---"
+          pip show openeye-toolkits
+          python -c "from openeye import oechem; print('OpenEye version:', oechem.OEToolkitsGetRelease())"
+
+      - name: Build wheel
+        run: |
+          python scripts/build_python.py \
+            --openeye-root "${OPENEYE_ROOT}" \
+            --python "$(which python)" \
+            --verbose
+{% endraw %}{% if cookiecutter.use_stable_abi == "true" %}{% raw %}
+      - name: Validate abi3 import table
+        run: |
+          # The wheel advertises cp310-abi3-win_amd64; the compiled .pyd must
+          # link python3.dll (stable ABI) and must NOT link python3XX.dll
+          # (versioned), otherwise the wheel silently breaks on any Python
+          # minor other than the build Python.
+{% endraw %}          WHEEL=$(ls dist/{{ cookiecutter.project_slug }}-*.whl){% raw %}
+          TMPDIR=$(mktemp -d)
+          unzip -q "$WHEEL" -d "$TMPDIR"
+{% endraw %}          PYD=$(find "$TMPDIR" -name '_{{ cookiecutter.project_slug }}*.pyd' | head -1){% raw %}
+          if [ -z "$PYD" ]; then
+{% endraw %}            echo "::error::_{{ cookiecutter.project_slug }}*.pyd not found in wheel"{% raw %}
+            exit 1
+          fi
+          dumpbin //dependents "$PYD" > deps.txt
+          cat deps.txt
+          if grep -Eiq '\bpython3[0-9]+\.dll\b' deps.txt; then
+            echo "::error::abi3 wheel links versioned Python DLL (python3XX.dll)"
+            grep -Ei '\bpython3[0-9]+\.dll\b' deps.txt
+            exit 1
+          fi
+          if ! grep -iq '\bpython3\.dll\b' deps.txt; then
+            echo "::error::abi3 wheel does not link python3.dll"
+            exit 1
+          fi
+          echo "OK: extension links python3.dll only"
+{% endraw %}{% endif %}{% raw %}
+      - name: Test wheel
+        run: |
+{% endraw %}          pip install dist/{{ cookiecutter.project_slug }}-*.whl{% raw %}
+          pytest tests/python/ -v -s
+
+      - name: List built artifacts
+        run: |
+          ls -la dist/
+{% endraw %}{% if cookiecutter.use_stable_abi == "true" %}{% raw %}
+      - name: Setup Python 3.13 (abi3 cross-version smoke test)
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: abi3 smoke test under Python 3.13
+        run: |
+          # Install the wheel into a different Python minor than the build
+          # Python (3.11) to verify the stable-ABI contract actually holds.
+          python -m pip install --upgrade pip
+{% endraw %}          pip install dist/{{ cookiecutter.project_slug }}-*.whl{% raw %}
+          pip install "openeye-toolkits==${{ vars.OPENEYE_VERSION }}" \
+            --extra-index-url https://pypi.anaconda.org/openeye/simple \
+            --no-cache-dir
+{% endraw %}          python -c "import {{ cookiecutter.project_slug }}; print('{{ cookiecutter.project_slug }}', {{ cookiecutter.project_slug }}.__version__, 'loaded under Python', __import__('sys').version)"{% raw %}
+{% endraw %}{% endif %}{% raw %}
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheel-windows-x64
+          path: dist/*.whl
+          retention-days: 2
+{% endraw %}
+
   # Collect all wheels into a single artifact
   collect-wheels:
 {% raw %}
-    needs: [build-linux, build-macos]
+    needs: [build-linux, build-macos, build-windows]
     runs-on: ubuntu-latest
     steps:
       - name: Download all wheel artifacts
