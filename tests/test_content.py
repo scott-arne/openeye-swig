@@ -5,6 +5,7 @@ correct variable substitutions, version consistency, etc.
 """
 
 import ast
+import importlib
 import json
 import sys
 
@@ -145,6 +146,113 @@ class TestPythonPackage:
         content = (generated_project / f"python/{DEFAULT_SLUG}/__init__.py").read_text()
         assert "def _preload_bundled_libs():" in content
         assert "_preload_bundled_libs()" in content
+
+    def test_init_py_does_not_import_openeye_during_preload(self, generated_project):
+        """__init__.py finds OpenEye runtime data without importing oechem."""
+        content = (generated_project / f"python/{DEFAULT_SLUG}/__init__.py").read_text()
+        assert "from openeye import libs" not in content
+        assert "from openeye import oechem" not in content
+        assert "def _find_openeye_runtime_lib_dir" in content
+        assert 'metadata.version("openeye-toolkits")' in content
+
+    def test_init_py_imports_without_openeye_side_effects(
+        self, generated_project_custom, monkeypatch, tmp_path
+    ):
+        """Package import does not load openeye.libs or openeye.oechem."""
+        project = generated_project_custom()
+        package_dir = project / "python" / DEFAULT_SLUG
+
+        (package_dir / "_build_info.py").write_text(
+            "OPENEYE_LIBRARY_TYPE = 'SHARED'\n"
+            "OPENEYE_EXPECTED_LIBS = ['liboechem-4.3.0.1.dylib']\n"
+            "OPENEYE_BUILD_VERSION = None\n"
+        )
+        (package_dir / f"{DEFAULT_SLUG}.py").write_text(
+            "def calculate_molecular_weight(mol):\n"
+            "    return 0.0\n"
+        )
+
+        fake_site = tmp_path / "fake_site"
+        fake_openeye = fake_site / "openeye"
+        fake_libs = fake_openeye / "libs"
+        fake_runtime = fake_libs / "python3-osx-universal-clang++"
+        fake_runtime.mkdir(parents=True)
+        (fake_openeye / "__init__.py").write_text("")
+        (fake_libs / "__init__.py").write_text(
+            "raise AssertionError('openeye.libs should not be imported')\n"
+        )
+        (fake_runtime / "liboechem-4.3.0.1.dylib").write_text("not a real library")
+
+        for module_name in list(sys.modules):
+            if module_name == DEFAULT_SLUG or module_name.startswith(f"{DEFAULT_SLUG}."):
+                monkeypatch.delitem(sys.modules, module_name, raising=False)
+            if module_name == "openeye" or module_name.startswith("openeye."):
+                monkeypatch.delitem(sys.modules, module_name, raising=False)
+
+        monkeypatch.syspath_prepend(str(project / "python"))
+        monkeypatch.syspath_prepend(str(fake_site))
+
+        module = importlib.import_module(DEFAULT_SLUG)
+
+        assert module.calculate_molecular_weight(None) == 0.0
+        assert "openeye.libs" not in sys.modules
+        assert "openeye.oechem" not in sys.modules
+
+    def test_init_py_uses_user_cache_for_broken_openeye_runtime_compat_symlink(
+        self, generated_project_custom, monkeypatch, tmp_path
+    ):
+        """Generated imports should ignore broken OpenEye runtime symlinks."""
+        project = generated_project_custom()
+        package_dir = project / "python" / DEFAULT_SLUG
+        expected_name = "liboechem-4.3.0.1.so"
+        runtime_name = "liboechem-4.3.0.3.so"
+
+        (package_dir / "_build_info.py").write_text(
+            "OPENEYE_LIBRARY_TYPE = 'SHARED'\n"
+            f"OPENEYE_EXPECTED_LIBS = [{expected_name!r}]\n"
+            "OPENEYE_BUILD_VERSION = '2025.2.1'\n"
+        )
+        (package_dir / f"{DEFAULT_SLUG}.py").write_text(
+            "def calculate_molecular_weight(mol):\n"
+            "    return 0.0\n"
+        )
+
+        fake_site = tmp_path / "fake_site"
+        fake_openeye = fake_site / "openeye"
+        fake_libs = fake_openeye / "libs"
+        fake_runtime = fake_libs / "python3-linux-x64-g++10.x"
+        fake_runtime.mkdir(parents=True)
+        (fake_openeye / "__init__.py").write_text("")
+        (fake_libs / "__init__.py").write_text(
+            "raise AssertionError('openeye.libs should not be imported')\n"
+        )
+        (fake_runtime / runtime_name).write_text("not a real library")
+        (fake_runtime / expected_name).symlink_to(fake_runtime / "missing-liboechem.so")
+        cache_home = tmp_path / "cache"
+
+        for module_name in list(sys.modules):
+            if module_name == DEFAULT_SLUG or module_name.startswith(f"{DEFAULT_SLUG}."):
+                monkeypatch.delitem(sys.modules, module_name, raising=False)
+            if module_name == "openeye" or module_name.startswith("openeye."):
+                monkeypatch.delitem(sys.modules, module_name, raising=False)
+
+        monkeypatch.syspath_prepend(str(project / "python"))
+        monkeypatch.syspath_prepend(str(fake_site))
+        monkeypatch.setenv("XDG_CACHE_HOME", str(cache_home))
+        importlib.invalidate_caches()
+
+        module = importlib.import_module(DEFAULT_SLUG)
+
+        assert module.calculate_molecular_weight(None) == 0.0
+        assert "openeye.libs" not in sys.modules
+        assert "openeye.oechem" not in sys.modules
+        assert not (package_dir / expected_name).exists()
+        cached_aliases = list(
+            cache_home.glob(f"{DEFAULT_SLUG}/openeye-libs/**/{expected_name}")
+        )
+        assert len(cached_aliases) == 1
+        assert cached_aliases[0].is_symlink()
+        assert cached_aliases[0].resolve().name == runtime_name
 
     def test_inner_pyproject_package_name(self, generated_project):
         """python/pyproject.toml has the correct package name."""
